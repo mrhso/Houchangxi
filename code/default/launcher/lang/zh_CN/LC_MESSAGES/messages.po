@@ -42,7 +42,7 @@ msgid "Thanks to the following projects"
 msgstr "感谢以下项目"
 
 msgid "About XX-Net"
-msgstr "关于 XX-Net"
+msgstr "关于后唱戏"
 
 msgid "General Settings"
 msgstr "通用"
@@ -90,7 +90,7 @@ msgid "Help"
 msgstr "帮助"
 
 msgid "Display System Tray(Restarting XX-Net Required)"
-msgstr "显示托盘图标(需要重启 XX-Net)"
+msgstr "显示托盘图标(需要重启后唱戏)"
 
 msgid "Display Windows software compatibility suggestions"
 msgstr "显示 Windows 软件兼容性建议"
@@ -333,7 +333,7 @@ msgid "working"
 msgstr "工作"
 
 msgid "XX-Net Status"
-msgstr "XX-Net 状态"
+msgstr "后唱戏状态"
 
 msgid "Browser Proxy Setting"
 msgstr "浏览器代理设置"
@@ -384,7 +384,7 @@ msgid "Post to Github issue needs to sign in your Github account"
 msgstr "贴到 GitHub 问题区需要登录 GitHub 账号"
 
 msgid "XX-Net Status Info"
-msgstr "XX-Net 状态信息"
+msgstr "后唱戏状态信息"
 
 msgid ""
 "-----------%0AProblem Description:%0APlease describe your problem, "
