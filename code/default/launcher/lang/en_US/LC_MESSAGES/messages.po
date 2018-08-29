@@ -41,6 +41,9 @@ msgstr ""
 msgid "Thanks the following projects"
 msgstr ""
 
+msgid "XX-Net"
+msgstr "Houchangxi"
+
 msgid "About XX-Net"
 msgstr ""
 

@@ -168,7 +168,7 @@ msgid "Failed saving settings."
 msgstr "保存设置失败。"
 
 msgid "Deploy XX-Net onto GAE"
-msgstr "部署 XX-Net 至 GAE"
+msgstr "部署后唱戏至 GAE"
 
 msgid "Current status: "
 msgstr "当前状态："
@@ -231,7 +231,7 @@ msgid "Auth window will popup, make sure don't block popup in browser."
 msgstr "认证会弹出窗口，请确认浏览器不会阻止弹窗。"
 
 msgid "XX-Net was reset."
-msgstr "XX-Net已被重置。"
+msgstr "后唱戏已被重置。"
 
 msgid "Deployment completed."
 msgstr "部署完成。"
@@ -408,7 +408,7 @@ msgid "Good IPv6 Number"
 msgstr "有效 IPv6 IP 数"
 
 msgid "XX-Net Status"
-msgstr "XX-Net 状态"
+msgstr "后唱戏状态"
 
 msgid "IP Quality"
 msgstr "IP 延迟"
@@ -435,7 +435,7 @@ msgid "Block Status"
 msgstr "屏蔽状态"
 
 msgid "XX-Net Version"
-msgstr "XX-Net 版本"
+msgstr "后唱戏版本"
 
 msgid "System Proxy Status"
 msgstr "系统代理状态"
