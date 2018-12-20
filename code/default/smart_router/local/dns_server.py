@@ -237,7 +237,7 @@ class DnsClient(object):
 
                         self.sock.sendto(req_pack, (server, 53))
 
-                        d = DNSRecord()
+                        d = DNSRecord(DNSHeader(id))
                         d.add_question(DNSQuestion(ip, QTYPE.AAAA))
                         req_pack = d.pack()
 
@@ -250,9 +250,8 @@ class DnsClient(object):
                         cn = "XX"
                     ips.append(ip+"|"+cn)
 
-                if len(ips):
-                    g.domain_cache.set_ips(org_domain, ips)
-                que.notify_all()
+                if ips:
+                    que.put(ips)
             except Exception as e:
                 xlog.exception("dns recv_worker except:%r", e)
 
@@ -265,7 +264,7 @@ class DnsClient(object):
             d.add_question(DNSQuestion(domain, QTYPE.A))
             req4_pack = d.pack()
 
-            d = DNSRecord()
+            d = DNSRecord(DNSHeader(id))
             d.add_question(DNSQuestion(domain, QTYPE.AAAA))
             req6_pack = d.pack()
 
@@ -294,15 +293,18 @@ class DnsClient(object):
             server_list = self.dns_server.public_list
 
         for ip in server_list:
-            if time.time() > end_time:
+            new_time = time.time()
+            if new_time > end_time:
                 break
 
             self.send_request(id, domain, ip)
 
             self.waiters[id] = que
-            que.wait(time.time() + 1)
-            ips = g.domain_cache.get_ips(domain)
-            if len(ips):
+            ips += que.get(1) or []
+            ips += que.get(new_time + 1 - time.time()) or []
+            if ips:
+                ips = list(set(ips))
+                g.domain_cache.set_ips(domain, ips)
                 break
 
         if id in self.waiters:
@@ -313,34 +315,53 @@ class DnsClient(object):
 
 class DnsServer(object):
     def __init__(self, bind_ip="127.0.0.1", port=53, backup_port=5353, ttl=24*3600):
-        self.bind_ip = bind_ip
+        self.sockets = []
+        self.running = False
+        if isinstance(bind_ip, str):
+            self.bind_ip = [bind_ip]
+        else:
+            # server can listen multi-port
+            self.bind_ip = bind_ip
         self.port = port
         self.backup_port = backup_port
         self.ttl = ttl
         self.th = None
-        self.bing_linsten()
+        self.init_socket()
 
-    def bing_linsten(self):
-        self.serverSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    def init_socket(self):
+        ips = set(self.bind_ip)
+        listen_all_v4 = "0.0.0.0" in ips
+        listen_all_v6 = "::" in ips
+        for ip in ips:
+            if ip not in ("0.0.0.0", "::") and \
+                    listen_all_v4 and '.' in ip or \
+                    listen_all_v6 and ':' in ip:
+                continue
+            self.bing_linsten(ip)
+
+    def bing_linsten(self, bind_ip):
+        if ":" in bind_ip:
+            sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+        else:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            self.serverSock.bind((self.bind_ip, self.port))
-            xlog.info("start DNS server at %s:%d", self.bind_ip, self.port)
+            sock.bind((bind_ip, self.port))
+            xlog.info("start DNS server at %s:%d", bind_ip, self.port)
             self.running = True
-            self.sockets = [self.serverSock]
+            self.sockets.append(sock)
             return
         except:
-            xlog.warn("bind DNS %s:%d fail", self.bind_ip, self.port)
+            xlog.warn("bind DNS %s:%d fail", bind_ip, self.port)
             pass
 
         try:
-            self.serverSock.bind((self.bind_ip, self.backup_port))
-            xlog.info("start DNS server at %s:%d", self.bind_ip, self.backup_port)
+            sock.bind((bind_ip, self.backup_port))
+            xlog.info("start DNS server at %s:%d", bind_ip, self.backup_port)
             self.running = True
-            self.sockets = [self.serverSock]
+            self.sockets.append(sock)
             return
         except Exception as e:
-            self.running = False
-            xlog.warn("bind DNS %s:%d fail", self.bind_ip, self.backup_port)
+            xlog.warn("bind DNS %s:%d fail", bind_ip, self.backup_port)
 
             if sys.platform.startswith("linux"):
                 xlog.warn("You can try: install libcap2-bin")
@@ -399,20 +420,20 @@ class DnsServer(object):
 
         return ips
 
-    def direct_query(self, request, client_addr):
+    def direct_query(self, rsock, request, client_addr):
         start_time = time.time()
         for server_ip in g.dns_client.dns_server.public_list:
             try:
                 a_pkt = request.send(server_ip, 53, tcp=True, timeout=1)
                 # a = DNSRecord.parse(a_pkt)
-                self.serverSock.sendto(a_pkt, client_addr)
+                rsock.sendto(a_pkt, client_addr)
                 return
             except:
                 if time.time() - start_time > 5:
                     xlog.warn("direct_query %s timeout", request)
                     break
 
-    def on_udp_query(self, req_data, addr):
+    def on_udp_query(self, rsock, req_data, addr):
         start_time = time.time()
         try:
             request = DNSRecord.parse(req_data)
@@ -428,7 +449,7 @@ class DnsServer(object):
             type = request.questions[0].qtype
             if type not in [1, 28]:
                 xlog.info("direct_query:%s type:%d", domain, type)
-                return self.direct_query(request, addr)
+                return self.direct_query(rsock, request, addr)
 
             xlog.debug("DNS query:%s type:%d from %s", domain, type, addr)
 
@@ -447,7 +468,7 @@ class DnsServer(object):
                     reply.add_answer(RR(domain, rtype=type, ttl=60, rdata=AAAA(ip)))
             res_data = reply.pack()
 
-            self.serverSock.sendto(res_data, addr)
+            rsock.sendto(res_data, addr)
             xlog.debug("query:%s type:%d from:%s, return ip num:%d cost:%d", domain, type, addr,
                        len(reply.rr), (time.time()-start_time)*1000)
         except Exception as e:
@@ -458,12 +479,9 @@ class DnsServer(object):
             r, w, e = select.select(self.sockets, [], [], 1)
             for rsock in r:
                 data, addr = rsock.recvfrom(1024)
-                threading.Thread(target=self.on_udp_query, args=(data, addr)).start()
+                threading.Thread(target=self.on_udp_query, args=(rsock, data, addr)).start()
 
-        self.serverSock.close()
-        self.sockets = []
         self.th = None
-        xlog.info("dns_server stop")
 
     def start(self):
         self.th = threading.Thread(target=self.server_forever)
@@ -473,6 +491,10 @@ class DnsServer(object):
         self.running = False
         while self.th:
             time.sleep(1)
+        for sock in self.sockets:
+            sock.close()
+        self.sockets = []
+        xlog.info("dns_server stop")
 
 
 if __name__ == '__main__':
